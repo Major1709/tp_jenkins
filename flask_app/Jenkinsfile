@@ -1,5 +1,40 @@
 pipeline {
-  agent any
+  agent {
+    kubernetes {
+      label 'jenkins-agent-flask-app'
+      yaml """
+apiVersion: v1
+kind: Pod
+metadata:
+  labels:
+    component: ci
+spec:
+  containers:
+    - name: python
+      image: python:3.11-slim
+      command:
+        - cat
+      tty: true
+    - name: docker
+      image: docker:26-cli
+      command:
+        - cat
+      tty: true
+      volumeMounts:
+        - mountPath: /var/run/docker.sock
+          name: docker-sock
+    - name: kubectl
+      image: bitnami/kubectl:1.34
+      command:
+        - cat
+      tty: true
+  volumes:
+    - name: docker-sock
+      hostPath:
+        path: /var/run/docker.sock
+"""
+    }
+  }
 
   triggers {
     pollSCM('* * * * *')
@@ -9,13 +44,10 @@ pipeline {
     stage('Test python') {
       steps {
         dir('flask_app') {
-          sh '''
-            docker run --rm \
-              -v "$PWD:/app" \
-              -w /app \
-              python:3.11-slim \
-              sh -c "pip install --no-cache-dir -r requirements.txt && python test.py -v"
-          '''
+          container('python') {
+            sh 'pip install --no-cache-dir -r requirements.txt'
+            sh 'python test.py -v'
+          }
         }
       }
     }
@@ -23,8 +55,10 @@ pipeline {
     stage('Build image') {
       steps {
         dir('flask_app') {
-          sh 'docker build -t localhost:4000/pythontest:latest .'
-          sh 'docker push localhost:4000/pythontest:latest'
+          container('docker') {
+            sh 'docker build -t localhost:4000/pythontest:latest .'
+            sh 'docker push localhost:4000/pythontest:latest'
+          }
         }
       }
     }
@@ -32,14 +66,10 @@ pipeline {
     stage('Deploy') {
       steps {
         dir('flask_app') {
-          sh '''
-            if command -v kubectl >/dev/null 2>&1; then
-              kubectl apply -f ./kubernetes/deployment.yaml
-              kubectl apply -f ./kubernetes/service.yaml
-            else
-              echo "kubectl absent dans Jenkins Docker Compose: deploiement Kubernetes ignore."
-            fi
-          '''
+          container('kubectl') {
+            sh 'kubectl apply -f ./kubernetes/deployment.yaml'
+            sh 'kubectl apply -f ./kubernetes/service.yaml'
+          }
         }
       }
     }

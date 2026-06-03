@@ -178,9 +178,11 @@ Le fichier `flask_app/Jenkinsfile` contient trois stages :
 2. `Build image`
 3. `Deploy`
 
-Dans cette version Docker Compose, Jenkins utilise `agent any`.
-Les tests sont lances dans un conteneur `python:3.11-slim` avec Docker.
-Le stage `Deploy` applique les manifests Kubernetes seulement si `kubectl` est disponible dans l'environnement Jenkins.
+Le pipeline utilise un agent Kubernetes compose de trois conteneurs :
+
+- `python` pour installer les dependances et lancer les tests ;
+- `docker` pour construire et pousser l'image ;
+- `kubectl` pour appliquer les manifests Kubernetes.
 
 ## Partie 7 - Deploiement Kubernetes
 

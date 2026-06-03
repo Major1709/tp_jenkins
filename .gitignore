@@ -1,2 +1,3 @@
 jenkins_simple/jenkins_data/*
 !jenkins_simple/jenkins_data/.gitkeep
+jenkins_simple/jenkins-kubeconfig.yaml
