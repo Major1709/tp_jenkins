@@ -8,6 +8,7 @@ Ce projet suit le TP `TP3-Mini_projet_Jenkins_docker_kubernetes.pdf`.
 tp_jenkins/
   README.md
   jenkins_simple/
+    Dockerfile
     docker-compose.yml
     home/
     jenkins_data/
@@ -26,13 +27,17 @@ tp_jenkins/
 
 ## Partie 1 - Lancer Jenkins avec Docker Compose
 
-Depuis ce dossier :
+Depuis `tp_jenkins/jenkins_simple` :
 
-```bash
+```powershell
 cd jenkins_simple
+docker compose build
 docker compose up -d
 docker compose logs -f jenkins
 ```
+
+Le conteneur Jenkins utilise une image personnalisee basee sur `jenkins/jenkins:lts-jdk17`.
+Elle ajoute Docker CLI pour les tests locaux et les besoins du TP.
 
 ## Lancement automatique
 
@@ -170,7 +175,72 @@ docker tag flask_hello localhost:4000/flask_hello:latest
 docker push localhost:4000/flask_hello:latest
 ```
 
-## Partie 6 - Jenkinsfile
+Le pipeline Kubernetes pousse l'image vers :
+
+```text
+host.docker.internal:4000/pythontest:latest
+```
+
+Cette adresse permet aux pods Kubernetes Docker Desktop d'atteindre le registry lance sur la machine hote.
+
+## Partie 6 - Configurer Kubernetes pour Jenkins
+
+Verifier que Kubernetes Docker Desktop fonctionne :
+
+```powershell
+kubectl config get-contexts
+kubectl config use-context docker-desktop
+kubectl get nodes
+```
+
+Le cluster utilise chez nous :
+
+```text
+https://127.0.0.1:13604
+```
+
+Depuis Jenkins, l'URL a mettre dans le Cloud Kubernetes est :
+
+```text
+https://host.docker.internal:13604
+```
+
+Dans Jenkins :
+
+```text
+Manage Jenkins > Clouds > New cloud > Kubernetes
+```
+
+Configuration :
+
+```text
+Name: kubernetes
+Kubernetes URL: https://host.docker.internal:13604
+Disable https certificate check: coche
+Kubernetes Namespace: default
+Credentials: k8s-jenkins-token
+Jenkins URL: http://host.docker.internal:8080/
+Jenkins tunnel: host.docker.internal:50000
+```
+
+Creer le service account Kubernetes pour Jenkins :
+
+```powershell
+kubectl create serviceaccount jenkins -n default
+kubectl create clusterrolebinding jenkins-cluster-admin --clusterrole=cluster-admin --serviceaccount=default:jenkins
+kubectl create token jenkins -n default --duration=8760h
+```
+
+Dans Jenkins, ajouter le token :
+
+```text
+Manage Jenkins > Credentials > System > Global credentials > Add Credentials
+Kind: Secret text
+Secret: token genere par kubectl
+ID: k8s-jenkins-token
+```
+
+## Partie 7 - Jenkinsfile
 
 Le fichier `flask_app/Jenkinsfile` contient trois stages :
 
@@ -178,13 +248,22 @@ Le fichier `flask_app/Jenkinsfile` contient trois stages :
 2. `Build image`
 3. `Deploy`
 
-Le pipeline utilise un agent Kubernetes compose de trois conteneurs :
+Le pipeline utilise un agent Kubernetes compose de quatre conteneurs :
 
 - `python` pour installer les dependances et lancer les tests ;
 - `docker` pour construire et pousser l'image ;
-- `kubectl` pour appliquer les manifests Kubernetes.
+- `dind` pour fournir un Docker daemon interne au pod ;
+- `jnlp`, ajoute automatiquement par Jenkins pour connecter l'agent.
 
-## Partie 7 - Deploiement Kubernetes
+Le build Docker utilise :
+
+```text
+DOCKER_HOST=tcp://localhost:2375
+```
+
+Cette approche evite le montage de `/var/run/docker.sock`, qui ne fonctionne pas correctement avec Docker Desktop Kubernetes dans cette configuration.
+
+## Partie 8 - Deploiement Kubernetes
 
 Depuis `flask_app` :
 
@@ -206,7 +285,37 @@ Si le cluster supporte `NodePort`, l'application est exposee sur :
 http://localhost:31000
 ```
 
-## Partie 8 - Branche feature et TDD
+## Partie 9 - Creer le pipeline Jenkins
+
+Dans Jenkins :
+
+```text
+New Item > Pipeline
+```
+
+Nom :
+
+```text
+tp_jenkins
+```
+
+Dans la section `Pipeline` :
+
+```text
+Definition: Pipeline script from SCM
+SCM: Git
+Repository URL: https://github.com/Major1709/tp_jenkins.git
+Branch Specifier: */main
+Script Path: flask_app/Jenkinsfile
+```
+
+Puis :
+
+```text
+Save > Build Now
+```
+
+## Partie 10 - Branche feature et TDD
 
 Creer une branche :
 
@@ -242,7 +351,8 @@ python test.py -v
 
 ## Notes importantes
 
-- Sur Docker Desktop avec Kubernetes, l'adresse `localhost:4000` peut ne pas etre accessible depuis tous les pods selon la configuration du cluster.
-- Monter `/var/run/docker.sock` donne au conteneur Jenkins un acces tres puissant au Docker de l'hote. C'est acceptable pour un TP local, mais pas recommande en production.
+- Sur Docker Desktop avec Kubernetes, l'adresse `localhost:4000` n'est pas fiable depuis les pods. Utiliser `host.docker.internal:4000`.
+- Le pipeline utilise Docker-in-Docker pour builder l'image dans l'agent Kubernetes.
+- Le service account `jenkins` est volontairement `cluster-admin` pour simplifier le TP local. En production, il faut limiter strictement les droits.
 - Le chart Helm `stable/jenkins` du PDF est ancien. Pour une installation moderne, utiliser le chart officiel maintenu par Jenkins.
 - L'image historique `jenkinsci/blueocean` du TP est ancienne et peut echouer pendant l'installation des plugins. Ce projet utilise `jenkins/jenkins:lts-jdk17`, puis Blue Ocean peut etre installe comme plugin.
