@@ -12,11 +12,13 @@ spec:
   containers:
     - name: python
       image: python:3.11-slim
+      imagePullPolicy: IfNotPresent
       command:
         - cat
       tty: true
     - name: docker
       image: docker:26-cli
+      imagePullPolicy: IfNotPresent
       command:
         - cat
       tty: true
@@ -24,7 +26,8 @@ spec:
         - mountPath: /var/run/docker.sock
           name: docker-sock
     - name: kubectl
-      image: bitnami/kubectl:1.34
+      image: bitnami/kubectl:latest
+      imagePullPolicy: IfNotPresent
       command:
         - cat
       tty: true
