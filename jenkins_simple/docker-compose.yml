@@ -1,0 +1,13 @@
+services:
+  jenkins:
+    image: jenkinsci/blueocean:latest
+    container_name: jenkins-blueocean
+    user: root
+    ports:
+      - "8080:8080"
+      - "50000:50000"
+    volumes:
+      - ./jenkins_data:/var/jenkins_home
+      - ./home:/home
+      - /var/run/docker.sock:/var/run/docker.sock
+    restart: unless-stopped
