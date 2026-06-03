@@ -19,16 +19,30 @@ spec:
     - name: docker
       image: docker:26-cli
       imagePullPolicy: IfNotPresent
+      env:
+        - name: DOCKER_HOST
+          value: tcp://localhost:2375
       command:
         - cat
       tty: true
+    - name: dind
+      image: docker:26-dind
+      imagePullPolicy: IfNotPresent
+      securityContext:
+        privileged: true
+      env:
+        - name: DOCKER_TLS_CERTDIR
+          value: ""
+      args:
+        - --host=tcp://0.0.0.0:2375
+        - --tls=false
+        - --insecure-registry=host.docker.internal:4000
       volumeMounts:
-        - mountPath: /var/run/docker.sock
-          name: docker-sock
+        - mountPath: /var/lib/docker
+          name: dind-storage
   volumes:
-    - name: docker-sock
-      hostPath:
-        path: /var/run/docker.sock
+    - name: dind-storage
+      emptyDir: {}
 """
     }
   }
@@ -53,8 +67,9 @@ spec:
       steps {
         dir('flask_app') {
           container('docker') {
-            sh 'docker build -t localhost:4000/pythontest:latest .'
-            sh 'docker push localhost:4000/pythontest:latest'
+            sh 'until docker info >/dev/null 2>&1; do sleep 2; done'
+            sh 'docker build -t host.docker.internal:4000/pythontest:latest .'
+            sh 'docker push host.docker.internal:4000/pythontest:latest'
           }
         }
       }
@@ -68,16 +83,24 @@ spec:
               docker run --rm \
                 --network host \
                 -v "$PWD/kubernetes:/work/kubernetes" \
-                -v /var/run/docker.sock:/var/run/docker.sock \
+                -v /var/run/secrets/kubernetes.io/serviceaccount:/var/run/secrets/kubernetes.io/serviceaccount:ro \
                 bitnami/kubectl:latest \
+                --server=https://kubernetes.default.svc \
+                --certificate-authority=/var/run/secrets/kubernetes.io/serviceaccount/ca.crt \
+                --token="$(cat /var/run/secrets/kubernetes.io/serviceaccount/token)" \
+                -n default \
                 apply -f /work/kubernetes/deployment.yaml
             '''
             sh '''
               docker run --rm \
                 --network host \
                 -v "$PWD/kubernetes:/work/kubernetes" \
-                -v /var/run/docker.sock:/var/run/docker.sock \
+                -v /var/run/secrets/kubernetes.io/serviceaccount:/var/run/secrets/kubernetes.io/serviceaccount:ro \
                 bitnami/kubectl:latest \
+                --server=https://kubernetes.default.svc \
+                --certificate-authority=/var/run/secrets/kubernetes.io/serviceaccount/ca.crt \
+                --token="$(cat /var/run/secrets/kubernetes.io/serviceaccount/token)" \
+                -n default \
                 apply -f /work/kubernetes/service.yaml
             '''
           }
