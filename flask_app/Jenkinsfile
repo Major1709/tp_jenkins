@@ -25,12 +25,6 @@ spec:
       volumeMounts:
         - mountPath: /var/run/docker.sock
           name: docker-sock
-    - name: kubectl
-      image: bitnami/kubectl:latest
-      imagePullPolicy: IfNotPresent
-      command:
-        - cat
-      tty: true
   volumes:
     - name: docker-sock
       hostPath:
@@ -69,9 +63,23 @@ spec:
     stage('Deploy') {
       steps {
         dir('flask_app') {
-          container('kubectl') {
-            sh 'kubectl apply -f ./kubernetes/deployment.yaml'
-            sh 'kubectl apply -f ./kubernetes/service.yaml'
+          container('docker') {
+            sh '''
+              docker run --rm \
+                --network host \
+                -v "$PWD/kubernetes:/work/kubernetes" \
+                -v /var/run/docker.sock:/var/run/docker.sock \
+                bitnami/kubectl:latest \
+                apply -f /work/kubernetes/deployment.yaml
+            '''
+            sh '''
+              docker run --rm \
+                --network host \
+                -v "$PWD/kubernetes:/work/kubernetes" \
+                -v /var/run/docker.sock:/var/run/docker.sock \
+                bitnami/kubectl:latest \
+                apply -f /work/kubernetes/service.yaml
+            '''
           }
         }
       }
