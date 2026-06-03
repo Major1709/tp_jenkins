@@ -9,6 +9,7 @@ metadata:
   labels:
     component: ci
 spec:
+  serviceAccountName: jenkins
   containers:
     - name: python
       image: python:3.11-slim
@@ -80,6 +81,8 @@ spec:
         dir('flask_app') {
           container('docker') {
             sh '''
+              set +x
+              TOKEN="$(cat /var/run/secrets/kubernetes.io/serviceaccount/token)"
               docker run --rm \
                 --network host \
                 -v "$PWD/kubernetes:/work/kubernetes" \
@@ -87,11 +90,13 @@ spec:
                 bitnami/kubectl:latest \
                 --server=https://kubernetes.default.svc \
                 --certificate-authority=/var/run/secrets/kubernetes.io/serviceaccount/ca.crt \
-                --token="$(cat /var/run/secrets/kubernetes.io/serviceaccount/token)" \
+                --token="$TOKEN" \
                 -n default \
                 apply -f /work/kubernetes/deployment.yaml
             '''
             sh '''
+              set +x
+              TOKEN="$(cat /var/run/secrets/kubernetes.io/serviceaccount/token)"
               docker run --rm \
                 --network host \
                 -v "$PWD/kubernetes:/work/kubernetes" \
@@ -99,7 +104,7 @@ spec:
                 bitnami/kubectl:latest \
                 --server=https://kubernetes.default.svc \
                 --certificate-authority=/var/run/secrets/kubernetes.io/serviceaccount/ca.crt \
-                --token="$(cat /var/run/secrets/kubernetes.io/serviceaccount/token)" \
+                --token="$TOKEN" \
                 -n default \
                 apply -f /work/kubernetes/service.yaml
             '''
