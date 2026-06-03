@@ -1,6 +1,7 @@
 services:
   jenkins:
-    image: jenkinsci/blueocean:latest
+    build: .
+    image: tp-jenkins:lts-docker
     container_name: jenkins-blueocean
     user: root
     ports:

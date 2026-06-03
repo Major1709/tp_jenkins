@@ -82,7 +82,8 @@ Puis :
 1. Coller le token.
 2. Installer les plugins recommandes.
 3. Creer un utilisateur administrateur.
-4. Ouvrir Blue Ocean avec `http://localhost:8080/blue`.
+4. Installer le plugin `Blue Ocean` depuis `Manage Jenkins > Plugins` si besoin.
+5. Ouvrir Blue Ocean avec `http://localhost:8080/blue`.
 
 ## Partie 2 - Premier pipeline Jenkins
 
@@ -177,11 +178,9 @@ Le fichier `flask_app/Jenkinsfile` contient trois stages :
 2. `Build image`
 3. `Deploy`
 
-Il utilise trois conteneurs dans un agent Kubernetes :
-
-- `python` pour les tests avec `python:3.11-slim`.
-- `docker` pour construire et pousser l'image.
-- `kubectl` pour deployer dans Kubernetes.
+Dans cette version Docker Compose, Jenkins utilise `agent any`.
+Les tests sont lances dans un conteneur `python:3.11-slim` avec Docker.
+Le stage `Deploy` applique les manifests Kubernetes seulement si `kubectl` est disponible dans l'environnement Jenkins.
 
 ## Partie 7 - Deploiement Kubernetes
 
@@ -244,3 +243,4 @@ python test.py -v
 - Sur Docker Desktop avec Kubernetes, l'adresse `localhost:4000` peut ne pas etre accessible depuis tous les pods selon la configuration du cluster.
 - Monter `/var/run/docker.sock` donne au conteneur Jenkins un acces tres puissant au Docker de l'hote. C'est acceptable pour un TP local, mais pas recommande en production.
 - Le chart Helm `stable/jenkins` du PDF est ancien. Pour une installation moderne, utiliser le chart officiel maintenu par Jenkins.
+- L'image historique `jenkinsci/blueocean` du TP est ancienne et peut echouer pendant l'installation des plugins. Ce projet utilise `jenkins/jenkins:lts-jdk17`, puis Blue Ocean peut etre installe comme plugin.

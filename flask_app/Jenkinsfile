@@ -1,40 +1,5 @@
 pipeline {
-  agent {
-    kubernetes {
-      label 'jenkins-agent-flask-app'
-      yaml """
-apiVersion: v1
-kind: Pod
-metadata:
-  labels:
-    component: ci
-spec:
-  containers:
-    - name: python
-      image: python:3.11-slim
-      command:
-        - cat
-      tty: true
-    - name: docker
-      image: docker:24-cli
-      command:
-        - cat
-      tty: true
-      volumeMounts:
-        - mountPath: /var/run/docker.sock
-          name: docker-sock
-    - name: kubectl
-      image: bitnami/kubectl:1.29
-      command:
-        - cat
-      tty: true
-  volumes:
-    - name: docker-sock
-      hostPath:
-        path: /var/run/docker.sock
-"""
-    }
-  }
+  agent any
 
   triggers {
     pollSCM('* * * * *')
@@ -43,16 +8,21 @@ spec:
   stages {
     stage('Test python') {
       steps {
-        container('python') {
-          sh 'pip install --no-cache-dir -r requirements.txt'
-          sh 'python test.py -v'
+        dir('flask_app') {
+          sh '''
+            docker run --rm \
+              -v "$PWD:/app" \
+              -w /app \
+              python:3.11-slim \
+              sh -c "pip install --no-cache-dir -r requirements.txt && python test.py -v"
+          '''
         }
       }
     }
 
     stage('Build image') {
       steps {
-        container('docker') {
+        dir('flask_app') {
           sh 'docker build -t localhost:4000/pythontest:latest .'
           sh 'docker push localhost:4000/pythontest:latest'
         }
@@ -61,9 +31,15 @@ spec:
 
     stage('Deploy') {
       steps {
-        container('kubectl') {
-          sh 'kubectl apply -f ./kubernetes/deployment.yaml'
-          sh 'kubectl apply -f ./kubernetes/service.yaml'
+        dir('flask_app') {
+          sh '''
+            if command -v kubectl >/dev/null 2>&1; then
+              kubectl apply -f ./kubernetes/deployment.yaml
+              kubectl apply -f ./kubernetes/service.yaml
+            else
+              echo "kubectl absent dans Jenkins Docker Compose: deploiement Kubernetes ignore."
+            fi
+          '''
         }
       }
     }
