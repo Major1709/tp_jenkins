@@ -315,6 +315,22 @@ Puis :
 Save > Build Now
 ```
 
+Ensuite, Jenkins relance automatiquement le pipeline quand un nouveau commit est pousse sur la branche configuree, car le `Jenkinsfile` contient :
+
+```groovy
+triggers {
+  pollSCM('* * * * *')
+}
+```
+
+Pour envoyer un changement vers GitHub :
+
+```bash
+git add .
+git commit -m "Update Jenkins project documentation"
+git push origin main
+```
+
 ## Partie 10 - Branche feature et TDD
 
 Creer une branche :
