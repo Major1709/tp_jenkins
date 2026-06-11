@@ -12,7 +12,7 @@ def hello_world():
 
 @app.route('/hello/<username>')
 def hello_user(username):
-    return 'Hello %s!\n' % username
+    return 'Hello Hello%s!\n' % username
 
 
 @app.route('/feature/<username>')
